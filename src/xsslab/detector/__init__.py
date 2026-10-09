@@ -1,5 +1,6 @@
 """Detection engine package for xsslab."""
 
 from xsslab.detector.context import HTMLContextAnalyzer
+from xsslab.detector.signatures import XSSSignatureEngine, XSSSignatureRule
 
-__all__ = ["HTMLContextAnalyzer"]
+__all__ = ["HTMLContextAnalyzer", "XSSSignatureEngine", "XSSSignatureRule"]
