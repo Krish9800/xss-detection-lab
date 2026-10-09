@@ -1,0 +1,21 @@
+services:
+  xsslab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xsslab:latest
+    container_name: xsslab-service
+    ports:
+      - "8081:8081"
+    environment:
+      - XSSLAB_ENVIRONMENT=production
+      - XSSLAB_DEBUG=false
+      - XSSLAB_ANOMALY_THRESHOLD=0.65
+      - XSSLAB_STRICT_SCRIPT_BLOCKING=true
+      - XSSLAB_DECODE_ENTITIES_BEFORE_SCAN=true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp

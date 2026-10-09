@@ -51,11 +51,35 @@ class XSSDetectionEngine:
         # 3. Obfuscation & Heuristic Anomaly Scoring
         heuristic_metrics, heuristic_findings = self.heuristic_analyzer.analyze(input_text)
 
-        # 4. Consolidate & Deduplicate Findings
-        combined_findings = context_findings + signature_findings + heuristic_findings
+        # 4. Optional Pre-Scan Entity Decoding Analysis
+        decoded_findings: list[DetectionFinding] = []
+        if self.settings.decode_entities_before_scan and ("&" in input_text):
+            decoded_text = html.unescape(input_text)
+            if decoded_text != input_text:
+                for df in self.signature_engine.scan(decoded_text):
+                    decoded_findings.append(
+                        DetectionFinding(
+                            finding_id=f"DEC-{df.finding_id}",
+                            rule_name=f"Entity-Decoded {df.rule_name}",
+                            category=df.category,
+                            context=df.context,
+                            confidence=ConfidenceLevel.HIGH,
+                            cwe_id="CWE-79",
+                            matched_payload=df.matched_payload,
+                            explanation=(
+                                f"Decoded HTML entities revealed attack payload: {df.explanation}"
+                            ),
+                            remediation=df.remediation,
+                        )
+                    )
+
+        # 5. Consolidate & Deduplicate Findings
+        combined_findings = (
+            context_findings + signature_findings + heuristic_findings + decoded_findings
+        )
         unique_findings = self._deduplicate_findings(combined_findings)
 
-        # 5. Calculate Weighted Risk Score & Categorize Verdict
+        # 6. Calculate Weighted Risk Score & Categorize Verdict
         risk_score = self._compute_risk_score(
             unique_findings,
             anomaly_score=heuristic_metrics.anomaly_score,
