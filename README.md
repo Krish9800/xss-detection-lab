@@ -1,201 +1,167 @@
 # XSS Detection Lab (`xsslab`)
 
-[![CI](https://img.shields.io/badge/CI-Passing-brightgreen.svg)](#)
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
-[![Coverage](https://img.shields.io/badge/Coverage-97%25-brightgreen.svg)](#)
-[![Type Checked](https://img.shields.io/badge/Mypy-Strict-blue.svg)](https://mypy-lang.org/)
-[![Linted](https://img.shields.io/badge/Ruff-Compliant-blueviolet.svg)](https://astral.sh/ruff)
-[![Security](https://img.shields.io/badge/Bandit-Passed-brightgreen.svg)](https://bandit.readthedocs.io/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Enterprise-Grade Cross-Site Scripting (XSS) Detection Engine, DOM Context-Aware Sanitizer, Heuristic Evaluator, and Dual-Mode Practice Lab.
 
-> Enterprise-Grade Cross-Site Scripting (XSS, CWE-79) Detection Engine, Context-Aware Defensive Encoder, and Dual-Mode Simulation Laboratory.
+[![CI Pipeline](https://github.com/Krish9800/xss-detection-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/Krish9800/xss-detection-lab/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![Sanitization: Bleach / HTMLParser](https://img.shields.io/badge/Sanitizer-Bleach%20%2F%20HTMLParser-blueviolet.svg)](https://github.com/mozilla/bleach)
+[![CLI: Typer](https://img.shields.io/badge/CLI-Typer-green.svg)](https://typer.tiangolo.com/)
 
 ---
 
-## 1. Overview & Problem Statement
+## Overview & Problem Statement
 
-Cross-Site Scripting (XSS, CWE-79) remains one of the most persistent vulnerabilities in modern web applications and APIs. Attackers inject executable scripts into trusted applications to hijack user sessions, exfiltrate sensitive data, manipulate the DOM, or pivot to remote code execution in desktop/Electron environments.
+Cross-Site Scripting (XSS) vulnerabilities (OWASP Top 10 A03:2021) allow adversaries to execute malicious JavaScript in victims' browsers, leading to session hijacking, credential theft, and DOM defacement. Naive blocklists often fail because XSS payloads adapt across distinct rendering contexts (HTML body, attribute values, JavaScript literals, URI attributes).
 
-Traditional defense solutions rely on naive blacklist string filtering (such as stripping `<script>`), which fails against modern evasion techniques, such as event handlers, SVG/XML vectors, pseudo-protocols (`javascript:`), and entity obfuscations (`&#x3C;`, `&#106;`).
-
-`xsslab` provides an all-in-one detection, defense, and educational research platform featuring:
-- **Lexical Execution Context Analysis**: Determines whether input lands in HTML body text, tag attributes, JavaScript string literals, URI schemes, or style blocks.
-- **Multi-Vector Signature Scanning**: 14 curated rules covering dangerous tags, event handlers, pseudo-protocols, script breakouts, and credential harvesting gadgets.
-- **Heuristic & Obfuscation Analysis**: Calculates entity density, Unicode/hex character escapes, script-tag density anomalies, and Shannon entropy.
-- **Context-Aware Output Encoding**: Mathematically sound context-specific encoding and strict Content Security Policy (CSP) generator with nonce support.
-- **Dual-Mode Defensive Simulation Lab**: Contrasts vulnerable vs hardened implementations across Reflected, Stored, and DOM injection vectors.
-- **Multi-Format Reporting**: Generates OASIS SARIF v2.1.0 (for GitHub Code Scanning), structured JSON, and GitHub Flavored Markdown reports.
-- **Rich Typer CLI & FastAPI Microservice**: Full-featured CLI and OpenAPI-compliant REST API.
+**XSS Detection Lab** is a context-aware detection engine and dual-mode practice laboratory. It inspects candidate payloads across rendering contexts, verifies contextual output encoding (HTML entities, URI encoding, JavaScript hex escapes), benchmarks detection accuracy, and provides an embedded dual-mode web application demonstrating both vulnerable patterns and hardened defensive mitigations.
 
 ---
 
-## 2. Architecture & Components
+## Architecture & Data Flow
 
-```
-                    ┌─────────────────────────────────────────┐
-                    │        Untrusted Input / Payload        │
-                    └────────────────────┬────────────────────┘
-                                         │
-                    ┌────────────────────▼────────────────────┐
-                    │      HTML Context Analyzer (Lexer)      │
-                    │   (HTML Body, Attribute, JS, URI, Style)│
-                    └────────────────────┬────────────────────┘
-                                         │
-         ┌───────────────────────────────┼───────────────────────────────┐
-         │                               │                               │
-┌────────▼──────────────┐   ┌────────────▼──────────────┐   ┌────────────▼──────────────┐
-│  XSS Signature Engine │   │   Heuristic Analyzer      │   │ Context-Aware Encoder     │
-│  - Dangerous Tags     │   │   - Entity Obfuscation    │   │ - HTML Entity             │
-│  - Event Handlers     │   │   - Unicode / Hex Escapes │   │ - Attribute Hex Entity    │
-│  - Pseudo-Protocols   │   │   - Tag Density           │   │ - JS Unicode Escape       │
-│  - DOM Sinks & Gadgets│   │   - Shannon Entropy       │   │ - URI Scheme Validation   │
-└────────┬──────────────┘   └────────────┬──────────────┘   └────────────┬──────────────┘
-         │                               │                               │
-         └───────────────────────────────┼───────────────────────────────┘
-                                         │
-                    ┌────────────────────▼────────────────────┐
-                    │       Consolidated Risk Evaluator       │
-                    │      (Risk Score: 0.0 - 100.0)          │
-                    └────────────────────┬────────────────────┘
-                                         │
-         ┌───────────────────────────────┴───────────────────────────────┐
-         │                                                               │
-┌────────▼──────────────────────────────┐       ┌────────────────────────▼──────────────────────┐
-│       Dual-Mode Simulation Lab        │       │             Reporting & Interfaces            │
-│  - Reflected: Raw vs Encoded          │       │  - Typer CLI (`xsslab audit / analyze`)       │
-│  - Stored: In-memory Guestbook        │       │  - FastAPI REST Microservice (`/api/v1/...`)  │
-│  - DOM: innerHTML vs textContent      │       │  - SARIF v2.1.0 / JSON / Markdown Reporters   │
-└───────────────────────────────────────┘       └───────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Payload[Candidate Input / Untrusted String] --> Normalizer[Payload Normalizer: Entity / Hex / Case]
+
+    subgraph Multi-Context Detection Engine
+        Normalizer --> HTMLContext[HTML Body Context Inspector: SCRIPT / SVG / IMG]
+        Normalizer --> AttrContext[HTML Attribute Context Inspector: onload / onerror / autofocus]
+        Normalizer --> JSContext[JavaScript Script Block Context Inspector: Quotes / String Breaks]
+        Normalizer --> URIContext[URI Scheme Inspector: javascript: / data: / vbscript:]
+    end
+
+    subgraph Sanitization & Encoding Verification
+        HTMLContext --> Encoder[Contextual Output Encoder]
+        AttrContext --> Encoder
+        JSContext --> Encoder
+        URIContext --> Encoder
+
+        Encoder --> HTML5Sanitizer[HTML5 DOM Parser: Bleach / Safe Tokenizer]
+    end
+
+    subgraph Dual-Mode Training Lab
+        Lab[FastAPI Practice Lab] --> VulnReflected[Vulnerable Reflected XSS: Raw Injection]
+        Lab --> HardenedEndpoint[Defensive Output-Encoded Endpoint]
+    end
+
+    subgraph Reporting
+        HTML5Sanitizer --> Scorer[Threat Scorer & Exploit Severity Classifier]
+        Scorer --> Report[Detection Report: Payloads / Context / Mitigation]
+        Report --> RichCLI[Typer CLI / Rich Terminal]
+        Report --> REST[FastAPI REST API / JSON Output]
+    end
 ```
 
 ---
 
-## 3. Quickstart & Installation
+## Verified Features
 
-### Requirements
-- Python 3.11 or 3.12
-- Linux / macOS / WSL
+- **Context-Aware Payload Detection:** Analyzes candidate strings for execution potential across HTML body, HTML attribute, JavaScript variable, and URL scheme contexts.
+- **Comprehensive Vector Coverage:**
+  - Classic script injection (`<script>alert(1)</script>`).
+  - Event-handler triggers (`<img src=x onerror=alert(1)>`, `<svg onload=confirm(1)>`).
+  - Pseudo-protocol execution (`<a href="javascript:alert(1)">`).
+  - Template literal and string breakout attacks (`'-alert(1)-'`).
+- **Contextual Output Encoding:** Implements strict sanitization recipes for HTML entities, attribute escaping, and JavaScript unicode escaping.
+- **Dual-Mode Practice Lab:** Embedded FastAPI training ground hosting vulnerable endpoints alongside hardened endpoints utilizing modern Content Security Policy (CSP).
+- **Performance Benchmark:** Benchmarking suite evaluating detection latency (< 1.5ms per payload) across synthetic datasets.
 
-### Local Installation
+---
+
+## Technology Stack
+
+- **Runtime:** Python 3.12+
+- **DOM & Sanitization:** `bleach` & `html.parser`
+- **API Framework:** FastAPI & Uvicorn
+- **CLI Framework:** Typer & Rich
+- **Quality Gates:** Pytest, Ruff, Mypy Strict, Bandit
+
+---
+
+## Requirements & Installation
+
 ```bash
 # Clone the repository
-git clone https://github.com/cybersecurity-portfolio/xss-detection-lab.git
+git clone https://github.com/Krish9800/xss-detection-lab.git
 cd xss-detection-lab
 
-# Create virtual environment and install dependencies
+# Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+
+# Install dependencies
+pip install -e .
 ```
 
 ---
 
-## 4. Command Line Interface (CLI)
+## Verified Usage Examples
 
-The `xsslab` CLI provides commands for auditing payloads, batch analysis, safe encoding, benchmarking, and interactive lab execution:
+### 1. Command-Line Interface (CLI)
 
-### 1. Audit Single Payload
 ```bash
-# Terminal table output with risk score and detected triggers
-xsslab audit "<script>alert(document.cookie)</script>"
+# Fast heuristic audit of a candidate payload
+xsslab audit "<img src=x onerror=alert(1)>"
 
-# Export as OASIS SARIF v2.1.0 for GitHub Code Scanning
-xsslab audit "<img src=x onerror=alert(1)>" --format sarif --output audit.sarif
+# Contextual analysis of a payload within an attribute context
+xsslab analyze '" onfocus="alert(1)" autofocus="' --context attribute
 
-# Export as Markdown report
-xsslab audit "javascript:alert(1)" --format markdown --output report.md
-```
+# Generate safe contextual output encoding for an untrusted string
+xsslab encode "<script>alert('pwned')</script>" --context html
 
-### 2. Batch File Analysis
-```bash
-# Analyze a list of payloads line by line
-xsslab analyze payloads.txt --format table
-```
-
-### 3. Context-Aware Encoding
-```bash
-# Encode for HTML body
-xsslab encode "<script>alert(1)</script>" --context html
-
-# Encode for HTML attribute
-xsslab encode "foo\" onfocus=\"alert(1)" --context attr
-
-# Encode for JavaScript string literal
-xsslab encode "'; alert(1); //" --context js
-```
-
-### 4. Run Detection Benchmark
-```bash
-# Evaluate True Positives, True Negatives, Precision, Recall, and Latency
+# Run detection latency and accuracy benchmark
 xsslab benchmark
+
+# Launch the interactive dual-mode practice lab
+xsslab lab --port 8080
 ```
 
-### 5. Interactive Defensive Lab
+### 2. REST API Service
+
 ```bash
-# Insecure reflected mode (vulnerable)
-xsslab lab "<script>alert(1)</script>" --mode insecure --type reflected
-
-# Hardened reflected mode (neutralized)
-xsslab lab "<script>alert(1)</script>" --mode hardened --type reflected
-
-# DOM sink simulation (innerHTML vs textContent)
-xsslab lab "<h1>Injected</h1>" --mode hardened --type dom
+# Launch the XSS detection API
+uvicorn xsslab.api.app:app --host 127.0.0.1 --port 8000
 ```
+
+Endpoints available at `http://127.0.0.1:8000/docs`:
+- `GET /health` — Service health check
+- `POST /api/v1/audit` — Fast regex pattern audit
+- `POST /api/v1/analyze` — Context-aware semantic XSS evaluation
+- `POST /api/v1/encode` — Safe contextual encoding utility
 
 ---
 
-## 5. REST API Microservice
-
-Launch the FastAPI microservice:
-```bash
-uvicorn xsslab.api.app:app --host 127.0.0.1 --port 8081 --reload
-```
-Interactive OpenAPI documentation is available at `http://127.0.0.1:8081/docs`.
-
-### API Endpoints:
-- `GET /health`: Health status and application version.
-- `POST /api/v1/detect`: Inspect untrusted input for XSS vectors with composite risk scoring.
-- `POST /api/v1/sanitize`: Context-aware encoding (HTML body, attributes, JS strings, URIs).
-- `POST /api/v1/simulate`: Simulate execution across reflected, stored, or DOM sinks.
-- `POST /api/v1/audit/csp`: Audit Content Security Policy headers for unsafe directives.
-- `GET /api/v1/rules`: List all registered detection rules and CWE taxonomy.
-
----
-
-## 6. Docker Deployment
-
-A rootless, multi-stage production Docker image (`UID 10001:10001`) is included:
+## Testing & Quality Gates
 
 ```bash
-# Build and run with docker-compose
-docker compose up -d
+# Run unit and contextual sanitization tests
+pytest --cov=xsslab --cov-report=term-missing
 
-# Check service health
-curl http://localhost:8081/health
-```
-
----
-
-## 7. Verification & Quality Assurance
-
-This codebase enforces strict quality gates:
-```bash
-# Run unit and integration test suite with coverage gate (>= 90%)
-pytest --cov=xsslab --cov-report=term-missing --cov-fail-under=90
-
-# Static type checking (100% strict)
-mypy src tests
-
-# Code style and formatting (PEP 8, line length <= 100)
+# Linting and static analysis
 ruff check .
 ruff format --check .
-
-# SAST security vulnerability scan
-bandit -r src/ -c pyproject.toml
+mypy src/xsslab
 ```
 
 ---
 
-## 8. License
+## Security Model & Threat Boundaries
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- **In-Memory Parsing:** Evaluates strings purely in memory without rendering in browser web engines, preventing accidental local execution.
+- **Defensive Focus:** Provides defensive code snippets demonstrating proper templating engine auto-escaping (Jinja2, React JSX) and strict Content Security Policy headers.
+
+---
+
+## Limitations & Known Issues
+
+- **DOM-Based XSS Limitations:** Evaluates static string payloads; complex client-side source-to-sink DOM execution tracing across minified SPA bundles is best complemented by dynamic browser testing.
+
+---
+
+## License & Responsible Use
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+> [!NOTE]
+> Designed for AppSec engineers, web developers learning secure coding, and defensive security researchers.
